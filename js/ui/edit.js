@@ -256,7 +256,7 @@ async function handleUrlImport() {
     const corsProxyUrl = getCorsProxyUrl(DEFAULT_CORS_PROXY);
     const result = await importRecipeFromUrl(url, corsProxyUrl);
     importedSourceURL = url;
-    if (result) {
+    if (result && result.kind === 'structured') {
       if (result.title) {
         els.title.value = result.title;
         autosize(els.title);
@@ -279,6 +279,16 @@ async function handleUrlImport() {
         renderPhotoPreview();
       }
       els.importStatus.textContent = '取り込みました。内容を確認・修正してください。';
+    } else if (result && result.kind === 'caption') {
+      if (result.photoBlob) {
+        currentPhotoBlob = result.photoBlob;
+        renderPhotoPreview();
+      }
+      if (result.caption) {
+        const note = `【取り込んだ投稿文】\n${result.caption}`;
+        els.memo.value = els.memo.value.trim() ? `${els.memo.value}\n\n${note}` : note;
+      }
+      els.importStatus.textContent = 'このサイトは材料・手順の自動取得に対応していないため、写真と投稿文だけを取り込みました。メモ欄の投稿文を見ながら、料理名・材料・手順を手動で入力してください。';
     } else {
       els.importStatus.textContent = '構造化データが見つかりませんでした。URLはリンクとして保存されます。手動で入力してください。';
     }

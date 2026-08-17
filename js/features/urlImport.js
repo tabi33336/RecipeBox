@@ -98,6 +98,48 @@ export function parseRecipeFromHtml(html) {
   return null;
 }
 
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function extractMetaTags(html) {
+  const metas = {};
+  const re = /<meta\b[^>]*>/gi;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    const tag = match[0];
+    const propMatch = tag.match(/\bproperty=["']([^"']+)["']/i) || tag.match(/\bname=["']([^"']+)["']/i);
+    const contentMatch = tag.match(/\bcontent=["']([^"']*)["']/i);
+    if (propMatch && contentMatch) {
+      metas[propMatch[1].toLowerCase()] = decodeHtmlEntities(contentMatch[1]);
+    }
+  }
+  return metas;
+}
+
+/**
+ * Best-effort fallback for pages without schema.org Recipe data (e.g.
+ * Instagram posts): reads Open Graph tags for a photo and the raw caption
+ * text. There's no structured ingredients/steps here, so callers should
+ * surface the caption as reference text for the user to copy from manually.
+ */
+export function parseOgTagsFromHtml(html) {
+  const metas = extractMetaTags(html);
+  const title = metas['og:title'] || '';
+  const description = metas['og:description'] || '';
+  const imageUrl = metas['og:image'] || null;
+  if (!description && !imageUrl) return null;
+  return { title, description, imageUrl };
+}
+
 export async function fetchHtml(url, corsProxyUrl) {
   const res = await fetch(proxiedUrl(corsProxyUrl, url));
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
@@ -110,10 +152,26 @@ export async function fetchImageAsBlob(imageUrl, corsProxyUrl) {
   return res.blob();
 }
 
+async function tryFetchPhoto(imageUrl, corsProxyUrl) {
+  if (!imageUrl) return null;
+  try {
+    return await fetchImageAsBlob(imageUrl, corsProxyUrl);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Attempts to import a recipe from a URL. Returns the parsed recipe (with an
- * optional `photoBlob`) on success, or null if structured data wasn't found /
- * fetch failed — callers should fall back to saving the URL as a plain link.
+ * Attempts to import a recipe from a URL.
+ *
+ * Returns one of:
+ * - { kind: 'structured', title, ingredients, steps, photoBlob } when a
+ *   schema.org Recipe was found (cookpad, kurashiru, etc.)
+ * - { kind: 'caption', title, caption, photoBlob } when no structured recipe
+ *   data exists but Open Graph tags did (e.g. Instagram posts) — the caption
+ *   is unstructured free text for the user to copy ingredients/steps from
+ * - null if nothing usable was found / the fetch failed — callers should
+ *   fall back to saving the URL as a plain link
  */
 export async function importRecipeFromUrl(url, corsProxyUrl) {
   let html;
@@ -122,16 +180,18 @@ export async function importRecipeFromUrl(url, corsProxyUrl) {
   } catch {
     return null;
   }
-  const recipe = parseRecipeFromHtml(html);
-  if (!recipe) return null;
 
-  let photoBlob = null;
-  if (recipe.imageUrl) {
-    try {
-      photoBlob = await fetchImageAsBlob(recipe.imageUrl, corsProxyUrl);
-    } catch {
-      photoBlob = null;
-    }
+  const recipe = parseRecipeFromHtml(html);
+  if (recipe) {
+    const photoBlob = await tryFetchPhoto(recipe.imageUrl, corsProxyUrl);
+    return { kind: 'structured', ...recipe, photoBlob };
   }
-  return { ...recipe, photoBlob };
+
+  const og = parseOgTagsFromHtml(html);
+  if (og) {
+    const photoBlob = await tryFetchPhoto(og.imageUrl, corsProxyUrl);
+    return { kind: 'caption', title: og.title, caption: og.description, photoBlob };
+  }
+
+  return null;
 }

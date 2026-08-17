@@ -23,33 +23,8 @@
   --space-6: 32px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #17160F;
-    --panel: #211F1A;
-    --ink: #F1EFE9;
-    --ink-soft: #A39D92;
-    --line: #34322A;
-    --accent: #93AB89;
-    --accent-ink: #16231A;
-    --accent-soft: #242920;
-    --warn: #DD9280;
-    --shadow: rgba(0, 0, 0, 0.55);
-  }
-}
-
-:root[data-theme="dark"] {
-  --ground: #17160F;
-  --panel: #211F1A;
-  --ink: #F1EFE9;
-  --ink-soft: #A39D92;
-  --line: #34322A;
-  --accent: #93AB89;
-  --accent-ink: #16231A;
-  --accent-soft: #242920;
-  --warn: #DD9280;
-  --shadow: rgba(0, 0, 0, 0.55);
-}
+/* Dark mode intentionally not supported: fixed contrast issues by always
+   using the light palette regardless of OS/browser color-scheme. */
 
 * {
   box-sizing: border-box;
