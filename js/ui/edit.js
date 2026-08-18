@@ -294,7 +294,7 @@ async function handleUrlImport() {
     }
   } catch (err) {
     importedSourceURL = url;
-    els.importStatus.textContent = '取り込みに失敗しました。URLはリンクとして保存されます。手動で入力してください。';
+    els.importStatus.textContent = `取り込みに失敗しました（${err.message}）。URLはリンクとして保存されます。手動で入力してください。`;
   } finally {
     els.btnImportUrl.disabled = false;
   }

@@ -170,16 +170,15 @@ async function tryFetchPhoto(imageUrl, corsProxyUrl) {
  * - { kind: 'caption', title, caption, photoBlob } when no structured recipe
  *   data exists but Open Graph tags did (e.g. Instagram posts) — the caption
  *   is unstructured free text for the user to copy ingredients/steps from
- * - null if nothing usable was found / the fetch failed — callers should
- *   fall back to saving the URL as a plain link
+ * - null if the page was reachable but had no usable recipe data — callers
+ *   should fall back to saving the URL as a plain link
+ *
+ * Throws if the fetch itself fails (network error, proxy down, etc.) —
+ * callers should distinguish this from the null case so the real failure
+ * reason is visible instead of being reported as "no data found".
  */
 export async function importRecipeFromUrl(url, corsProxyUrl) {
-  let html;
-  try {
-    html = await fetchHtml(url, corsProxyUrl);
-  } catch {
-    return null;
-  }
+  const html = await fetchHtml(url, corsProxyUrl);
 
   const recipe = parseRecipeFromHtml(html);
   if (recipe) {
