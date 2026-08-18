@@ -10,18 +10,28 @@
 
 const ALLOWED_METHODS = 'GET, OPTIONS';
 
-function corsHeaders() {
+// Echo the request's actual Origin instead of a bare "*" wildcard, and mark
+// the response as Origin-dependent via Vary. Some WebKit/Safari versions
+// handle the literal "*" wildcard unreliably for cross-origin fetch() reads
+// (works fine for a plain top-level page load, which doesn't go through
+// CORS at all — only fetch()/XHR does), which is the exact split we saw:
+// direct browser visits succeeded while in-app fetch() failed with the
+// generic "Load failed" error.
+function corsHeaders(request) {
+  const origin = request.headers.get('Origin') || '*';
   return new Headers({
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': origin,
+    Vary: 'Origin',
     'Access-Control-Allow-Methods': ALLOWED_METHODS,
     'Access-Control-Allow-Headers': '*',
+    'Access-Control-Max-Age': '86400',
   });
 }
 
 export default {
   async fetch(request) {
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders() });
+      return new Response(null, { status: 204, headers: corsHeaders(request) });
     }
 
     const requestUrl = new URL(request.url);
@@ -30,7 +40,7 @@ export default {
     if (!target) {
       return new Response('Missing "url" query parameter', {
         status: 400,
-        headers: corsHeaders(),
+        headers: corsHeaders(request),
       });
     }
 
@@ -40,13 +50,13 @@ export default {
     } catch {
       return new Response('Invalid "url" query parameter', {
         status: 400,
-        headers: corsHeaders(),
+        headers: corsHeaders(request),
       });
     }
     if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
       return new Response('Only http/https URLs are supported', {
         status: 400,
-        headers: corsHeaders(),
+        headers: corsHeaders(request),
       });
     }
 
@@ -61,18 +71,23 @@ export default {
         redirect: 'follow',
       });
 
-      const headers = corsHeaders();
+      // Buffer the full body instead of piping upstreamResponse.body through
+      // directly, so the response has a known Content-Length rather than
+      // chunked transfer encoding.
+      const bodyBuffer = await upstreamResponse.arrayBuffer();
+
+      const headers = corsHeaders(request);
       const contentType = upstreamResponse.headers.get('content-type');
       if (contentType) headers.set('Content-Type', contentType);
 
-      return new Response(upstreamResponse.body, {
+      return new Response(bodyBuffer, {
         status: upstreamResponse.status,
         headers,
       });
     } catch (err) {
       return new Response(`Proxy fetch failed: ${err.message}`, {
         status: 502,
-        headers: corsHeaders(),
+        headers: corsHeaders(request),
       });
     }
   },
