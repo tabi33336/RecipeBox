@@ -1,4 +1,4 @@
-export const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+export const DEFAULT_CORS_PROXY = 'https://recipe-proxy.tabi33336.workers.dev/?url=';
 
 function proxiedUrl(corsProxyUrl, targetUrl) {
   return `${corsProxyUrl}${encodeURIComponent(targetUrl)}`;
