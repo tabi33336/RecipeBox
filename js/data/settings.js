@@ -4,7 +4,10 @@ const KEYS = {
   corsProxyUrl: 'recipe-book:corsProxyUrl',
 };
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+// "-latest" alias: Google hot-swaps this to whichever current Flash model
+// is recommended, so it keeps working as older dated models get deprecated
+// (e.g. gemini-2.0-flash was retired) without needing a code/setting update.
+export const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
 
 export function getGeminiApiKey() {
   return localStorage.getItem(KEYS.geminiApiKey) || '';
