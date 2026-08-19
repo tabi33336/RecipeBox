@@ -169,6 +169,12 @@ function bindHeaderIcons() {
   header.btnDeleteRecipe.innerHTML = UI_ICONS.trash;
 }
 
+function bindLedeNoteIcons() {
+  for (const el of document.querySelectorAll('.lede-note__icon')) {
+    el.innerHTML = UI_ICONS.info;
+  }
+}
+
 function bindTabBar() {
   q('tabIconList').innerHTML = UI_ICONS.list;
   q('tabIconCalendar').innerHTML = UI_ICONS.calendar;
@@ -177,6 +183,12 @@ function bindTabBar() {
   for (const item of tabBar.items) {
     item.addEventListener('click', () => navigate(item.dataset.tab));
   }
+}
+
+function startNewRecipe() {
+  state.currentRecipeId = null;
+  state.editReturnView = 'list';
+  navigate('edit');
 }
 
 function bindHeaderActions() {
@@ -188,11 +200,7 @@ function bindHeaderActions() {
     }
   });
   header.btnSettings.addEventListener('click', () => navigate('settings'));
-  header.btnAddRecipe.addEventListener('click', () => {
-    state.currentRecipeId = null;
-    state.editReturnView = 'list';
-    navigate('edit');
-  });
+  header.btnAddRecipe.addEventListener('click', startNewRecipe);
   header.btnEditRecipe.addEventListener('click', () => {
     state.editReturnView = 'detail';
     navigate('edit', { recipe: currentRecipe() });
@@ -206,6 +214,7 @@ async function init() {
   bindHeaderIcons();
   bindHeaderActions();
   bindTabBar();
+  bindLedeNoteIcons();
   initCalendar();
   initShoppingList();
 
@@ -214,6 +223,7 @@ async function init() {
       state.currentRecipeId = id;
       navigate('detail');
     },
+    onAddRecipe: startNewRecipe,
     onFilterFolder: (id) => {
       state.filterFolderId = id;
       refreshListView();

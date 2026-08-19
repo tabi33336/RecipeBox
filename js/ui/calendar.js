@@ -1,27 +1,39 @@
 import { getAllRecipes, getAllMealPlanEntries, putMealPlanEntry, deleteMealPlanEntry, genId } from '../data/db.js';
 import { pushChanges, pushDeletion } from '../data/sync.js';
-import { MEAL_TYPES, MEAL_TYPE_LABELS, toDateKey, parseDateKey, formatMonthLabel, getMonthGrid, groupEntriesByDate } from '../data/mealPlanUtils.js';
+import {
+  MEAL_TYPES, MEAL_TYPE_LABELS, toDateKey, parseDateKey, formatMonthLabel, getMonthGrid,
+  getWeekGrid, formatWeekdayLabel, formatWeekRangeLabel, groupEntriesByDate,
+} from '../data/mealPlanUtils.js';
 import { reportSyncError } from '../utils/syncFeedback.js';
 import { UI_ICONS } from '../icons.js';
 
 const els = {};
-const now = new Date();
-let currentYear = now.getFullYear();
-let currentMonth = now.getMonth();
+let viewMode = 'week';
+let currentDate = new Date();
 let recipesCache = [];
 let entriesCache = [];
 let entriesByDate = new Map();
 let openDayKey = null;
+let pickerDateKey = null;
 let pickerMealType = null;
+let lastScrollY = 0;
+const SCROLL_HIDE_THRESHOLD = 6;
+const SCROLL_TOP_MARGIN = 40;
 
 function q(id) { return document.getElementById(id); }
 
 export function initCalendar() {
-  els.grid = q('calendarGrid');
-  els.monthLabel = q('calMonthLabel');
-  els.btnPrev = q('btnCalPrevMonth');
-  els.btnNext = q('btnCalNextMonth');
+  els.view = q('view-calendar');
+  els.header = q('calendarHeader');
+  els.label = q('calLabel');
+  els.btnPrev = q('btnCalPrev');
+  els.btnNext = q('btnCalNext');
   els.btnToday = q('btnCalToday');
+  els.modeToggle = q('calModeToggle');
+  els.weekView = q('calendarWeekView');
+  els.weekList = q('calendarWeekList');
+  els.monthView = q('calendarMonthView');
+  els.grid = q('calendarGrid');
 
   els.dayDetailOverlay = q('dayDetailOverlay');
   els.dayDetailTitle = q('dayDetailTitle');
@@ -38,14 +50,16 @@ export function initCalendar() {
   els.btnCloseDayDetail.innerHTML = UI_ICONS.close;
   els.btnCloseRecipePicker.innerHTML = UI_ICONS.close;
 
-  els.btnPrev.addEventListener('click', () => changeMonth(-1));
-  els.btnNext.addEventListener('click', () => changeMonth(1));
+  els.btnPrev.addEventListener('click', () => changeDate(-1));
+  els.btnNext.addEventListener('click', () => changeDate(1));
   els.btnToday.addEventListener('click', () => {
-    const today = new Date();
-    currentYear = today.getFullYear();
-    currentMonth = today.getMonth();
-    renderMonthGrid();
+    currentDate = new Date();
+    renderCurrentView();
   });
+
+  for (const btn of els.modeToggle.querySelectorAll('.calendar-mode-toggle__btn')) {
+    btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
+  }
 
   els.dayDetailOverlay.addEventListener('click', (e) => { if (e.target === els.dayDetailOverlay) closeDayDetail(); });
   els.btnCloseDayDetail.addEventListener('click', closeDayDetail);
@@ -53,26 +67,154 @@ export function initCalendar() {
   els.recipePickerOverlay.addEventListener('click', (e) => { if (e.target === els.recipePickerOverlay) closeRecipePicker(); });
   els.btnCloseRecipePicker.addEventListener('click', closeRecipePicker);
   els.recipePickerSearch.addEventListener('input', () => renderRecipePickerList());
+
+  updateAppHeaderHeightVar();
+  window.addEventListener('resize', updateAppHeaderHeightVar);
+  window.addEventListener('scroll', onWindowScroll, { passive: true });
 }
 
-function changeMonth(delta) {
-  currentMonth += delta;
-  if (currentMonth < 0) { currentMonth = 11; currentYear -= 1; }
-  if (currentMonth > 11) { currentMonth = 0; currentYear += 1; }
-  renderMonthGrid();
+function updateAppHeaderHeightVar() {
+  const appHeader = document.querySelector('.app-header');
+  if (!appHeader) return;
+  document.documentElement.style.setProperty('--app-header-h', `${appHeader.offsetHeight}px`);
+}
+
+function showCalendarHeader() {
+  els.header.classList.remove('collapsed');
+}
+
+function onWindowScroll() {
+  if (els.view.hidden) return;
+  const currentY = window.scrollY;
+  if (currentY <= SCROLL_TOP_MARGIN) {
+    showCalendarHeader();
+  } else if (currentY - lastScrollY > SCROLL_HIDE_THRESHOLD) {
+    els.header.classList.add('collapsed');
+  } else if (lastScrollY - currentY > SCROLL_HIDE_THRESHOLD) {
+    showCalendarHeader();
+  }
+  lastScrollY = currentY;
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  for (const btn of els.modeToggle.querySelectorAll('.calendar-mode-toggle__btn')) {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  }
+  els.weekView.hidden = mode !== 'week';
+  els.monthView.hidden = mode !== 'month';
+  showCalendarHeader();
+  renderCurrentView();
+}
+
+function changeDate(delta) {
+  if (viewMode === 'week') {
+    currentDate.setDate(currentDate.getDate() + delta * 7);
+  } else {
+    currentDate.setDate(1);
+    currentDate.setMonth(currentDate.getMonth() + delta);
+  }
+  renderCurrentView();
 }
 
 export async function renderCalendar() {
   recipesCache = await getAllRecipes();
   entriesCache = await getAllMealPlanEntries();
   entriesByDate = groupEntriesByDate(entriesCache);
-  renderMonthGrid();
+  lastScrollY = window.scrollY;
+  setViewMode('week');
+}
+
+function renderCurrentView() {
+  if (viewMode === 'week') {
+    renderWeekList();
+  } else {
+    renderMonthGrid();
+  }
+}
+
+function renderMealTypeSections(container, dateKey) {
+  container.innerHTML = '';
+  const entries = entriesByDate.get(dateKey) || [];
+  for (const mealType of MEAL_TYPES) {
+    const section = document.createElement('div');
+    section.className = 'meal-type-section';
+
+    const header = document.createElement('div');
+    header.className = 'edit-section__header';
+    const label = document.createElement('span');
+    label.className = 'card-title';
+    label.textContent = MEAL_TYPE_LABELS[mealType];
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn btn-secondary';
+    addBtn.innerHTML = `${UI_ICONS.plus} 追加`;
+    addBtn.addEventListener('click', () => openRecipePicker(dateKey, mealType));
+    header.append(label, addBtn);
+    section.appendChild(header);
+
+    const mealEntries = entries.filter((e) => e.mealType === mealType);
+    if (mealEntries.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'meal-entry-empty';
+      empty.textContent = '未設定';
+      section.appendChild(empty);
+    } else {
+      const list = document.createElement('div');
+      list.className = 'meal-entry-list';
+      for (const entry of mealEntries) {
+        const recipe = recipesCache.find((r) => r.id === entry.recipeId);
+        const chip = document.createElement('div');
+        chip.className = 'meal-entry-chip';
+        const title = document.createElement('span');
+        title.textContent = recipe ? recipe.title : '（削除済み）';
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-icon';
+        removeBtn.innerHTML = UI_ICONS.close;
+        removeBtn.addEventListener('click', () => removeEntry(entry.id));
+        chip.append(title, removeBtn);
+        list.appendChild(chip);
+      }
+      section.appendChild(list);
+    }
+
+    container.appendChild(section);
+  }
+}
+
+function renderWeekList() {
+  const days = getWeekGrid(currentDate);
+  els.label.textContent = formatWeekRangeLabel(days);
+  els.weekList.innerHTML = '';
+  const todayKey = toDateKey(new Date());
+
+  for (const date of days) {
+    const key = toDateKey(date);
+    const dayCard = document.createElement('div');
+    dayCard.className = 'calendar-week-day';
+    if (key === todayKey) dayCard.classList.add('today');
+
+    const header = document.createElement('div');
+    header.className = 'calendar-week-day__header';
+    const dateLabel = document.createElement('span');
+    dateLabel.className = 'calendar-week-day__date';
+    dateLabel.textContent = `${date.getMonth() + 1}月${date.getDate()}日（${formatWeekdayLabel(date)}）`;
+    header.appendChild(dateLabel);
+    dayCard.appendChild(header);
+
+    const mealTypes = document.createElement('div');
+    renderMealTypeSections(mealTypes, key);
+    dayCard.appendChild(mealTypes);
+
+    els.weekList.appendChild(dayCard);
+  }
 }
 
 function renderMonthGrid() {
-  els.monthLabel.textContent = formatMonthLabel(currentYear, currentMonth);
+  els.label.textContent = formatMonthLabel(currentDate.getFullYear(), currentDate.getMonth());
   els.grid.innerHTML = '';
-  const days = getMonthGrid(currentYear, currentMonth);
+  const days = getMonthGrid(currentDate.getFullYear(), currentDate.getMonth());
   const todayKey = toDateKey(new Date());
 
   for (const date of days) {
@@ -80,7 +222,7 @@ function renderMonthGrid() {
     const cell = document.createElement('button');
     cell.type = 'button';
     cell.className = 'calendar-day';
-    if (date.getMonth() !== currentMonth) cell.classList.add('outside-month');
+    if (date.getMonth() !== currentDate.getMonth()) cell.classList.add('outside-month');
     if (key === todayKey) cell.classList.add('today');
 
     const dateLabel = document.createElement('span');
@@ -123,70 +265,21 @@ function openDayDetail(dateKey) {
   openDayKey = dateKey;
   const date = parseDateKey(dateKey);
   els.dayDetailTitle.textContent = `${date.getMonth() + 1}月${date.getDate()}日`;
-  renderDayDetailBody();
+  renderMealTypeSections(els.dayDetailMealTypes, openDayKey);
   els.dayDetailOverlay.classList.add('open');
-}
-
-function renderDayDetailBody() {
-  els.dayDetailMealTypes.innerHTML = '';
-  const entries = entriesByDate.get(openDayKey) || [];
-  for (const mealType of MEAL_TYPES) {
-    const section = document.createElement('div');
-    section.className = 'meal-type-section';
-
-    const header = document.createElement('div');
-    header.className = 'edit-section__header';
-    const label = document.createElement('span');
-    label.className = 'card-title';
-    label.textContent = MEAL_TYPE_LABELS[mealType];
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-secondary';
-    addBtn.innerHTML = `${UI_ICONS.plus} 追加`;
-    addBtn.addEventListener('click', () => openRecipePicker(mealType));
-    header.append(label, addBtn);
-    section.appendChild(header);
-
-    const mealEntries = entries.filter((e) => e.mealType === mealType);
-    if (mealEntries.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'meal-entry-empty';
-      empty.textContent = '未設定';
-      section.appendChild(empty);
-    } else {
-      const list = document.createElement('div');
-      list.className = 'meal-entry-list';
-      for (const entry of mealEntries) {
-        const recipe = recipesCache.find((r) => r.id === entry.recipeId);
-        const chip = document.createElement('div');
-        chip.className = 'meal-entry-chip';
-        const title = document.createElement('span');
-        title.textContent = recipe ? recipe.title : '（削除されたレシピ）';
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'btn btn-icon';
-        removeBtn.innerHTML = UI_ICONS.close;
-        removeBtn.addEventListener('click', () => removeEntry(entry.id));
-        chip.append(title, removeBtn);
-        list.appendChild(chip);
-      }
-      section.appendChild(list);
-    }
-
-    els.dayDetailMealTypes.appendChild(section);
-  }
 }
 
 async function removeEntry(entryId) {
   await deleteMealPlanEntry(entryId);
   entriesCache = entriesCache.filter((e) => e.id !== entryId);
   entriesByDate = groupEntriesByDate(entriesCache);
-  renderDayDetailBody();
-  renderMonthGrid();
+  if (openDayKey) renderMealTypeSections(els.dayDetailMealTypes, openDayKey);
+  renderCurrentView();
   pushDeletion('mealPlanEntry', entryId).catch(reportSyncError);
 }
 
-function openRecipePicker(mealType) {
+function openRecipePicker(dateKey, mealType) {
+  pickerDateKey = dateKey;
   pickerMealType = mealType;
   els.recipePickerSearch.value = '';
   renderRecipePickerList();
@@ -195,6 +288,7 @@ function openRecipePicker(mealType) {
 
 function closeRecipePicker() {
   els.recipePickerOverlay.classList.remove('open');
+  pickerDateKey = null;
   pickerMealType = null;
 }
 
@@ -225,7 +319,7 @@ function renderRecipePickerList() {
 async function selectRecipe(recipeId) {
   const entry = {
     id: genId(),
-    date: openDayKey,
+    date: pickerDateKey,
     mealType: pickerMealType,
     recipeId,
     memo: '',
@@ -235,7 +329,7 @@ async function selectRecipe(recipeId) {
   entriesCache = [...entriesCache, saved];
   entriesByDate = groupEntriesByDate(entriesCache);
   closeRecipePicker();
-  renderDayDetailBody();
-  renderMonthGrid();
+  if (openDayKey) renderMealTypeSections(els.dayDetailMealTypes, openDayKey);
+  renderCurrentView();
   pushChanges().catch(reportSyncError);
 }

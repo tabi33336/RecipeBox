@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>レシピ帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/components.css">
@@ -59,23 +62,38 @@
     </div>
     <div class="recipe-list" id="recipeList"></div>
     <div class="empty-state" id="listEmptyState" hidden>
-      <p>まだレシピがありません。右上の「＋」から追加しましょう。</p>
+      <p class="empty-state__title">まだレシピがありません</p>
+      <p class="empty-state__desc">写真やURLから、AIが自動でレシピ化します。</p>
+      <button id="btnEmptyStateAdd" class="btn btn-primary" type="button">＋ 最初のレシピを追加</button>
     </div>
   </main>
 
   <main id="view-calendar" class="view" hidden>
-    <div class="calendar-toolbar">
-      <div class="calendar-toolbar__nav">
-        <button id="btnCalPrevMonth" class="btn btn-icon" aria-label="前の月"></button>
-        <span id="calMonthLabel" class="calendar-month-label"></span>
-        <button id="btnCalNextMonth" class="btn btn-icon" aria-label="次の月"></button>
+    <div class="calendar-header" id="calendarHeader">
+      <div class="calendar-toolbar">
+        <div class="calendar-toolbar__nav">
+          <button id="btnCalPrev" class="btn btn-icon" aria-label="前へ"></button>
+          <span id="calLabel" class="calendar-month-label"></span>
+          <button id="btnCalNext" class="btn btn-icon" aria-label="次へ"></button>
+        </div>
+        <button id="btnCalToday" class="btn btn-ghost" type="button">今日</button>
       </div>
-      <button id="btnCalToday" class="btn btn-ghost" type="button">今日</button>
+      <div class="calendar-mode-toggle" id="calModeToggle">
+        <button type="button" class="calendar-mode-toggle__btn" data-mode="week">週</button>
+        <button type="button" class="calendar-mode-toggle__btn" data-mode="month">月</button>
+      </div>
     </div>
-    <div class="calendar-weekdays">
-      <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+
+    <div id="calendarWeekView">
+      <div class="calendar-week-list" id="calendarWeekList"></div>
     </div>
-    <div class="calendar-grid" id="calendarGrid"></div>
+
+    <div id="calendarMonthView" hidden>
+      <div class="calendar-weekdays">
+        <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
   </main>
 
   <main id="view-shopping" class="view" hidden>
@@ -143,152 +161,283 @@
   </main>
 
   <main id="view-edit" class="view" hidden>
-    <div class="edit-section">
-      <span class="section-label">レシピURLから取り込み</span>
-      <div class="url-import-row">
+    <div id="editChooser" class="edit-chooser">
+      <button type="button" class="edit-chooser__card edit-chooser__card--ai" data-choose="ai">
+        <span class="edit-chooser__icon" id="chooserIconAi"></span>
+        <span class="edit-chooser__text">
+          <span class="edit-chooser__title">写真でAI推測</span>
+          <span class="edit-chooser__desc">お店の写真から自動でレシピ化</span>
+        </span>
+      </button>
+      <button type="button" class="edit-chooser__card edit-chooser__card--ai" data-choose="url">
+        <span class="edit-chooser__icon" id="chooserIconUrl"></span>
+        <span class="edit-chooser__text">
+          <span class="edit-chooser__title">URLから取り込む</span>
+          <span class="edit-chooser__desc">レシピサイトのリンクを貼るだけ</span>
+        </span>
+      </button>
+      <button type="button" class="edit-chooser__card" data-choose="manual">
+        <span class="edit-chooser__icon" id="chooserIconManual"></span>
+        <span class="edit-chooser__text">
+          <span class="edit-chooser__title">手動で入力</span>
+          <span class="edit-chooser__desc">材料・手順を自分で書く</span>
+        </span>
+      </button>
+    </div>
+
+    <div id="editUrlPanel" class="edit-stage-panel" hidden>
+      <button type="button" class="stage-back" id="btnUrlPanelBack"><span id="urlPanelBackIcon"></span>別の方法を選ぶ</button>
+      <div class="edit-section">
+        <span class="section-label">レシピURLから取り込み</span>
+        <div class="url-import-row">
+          <div class="field">
+            <input id="editImportUrl" type="url" placeholder="https://...">
+          </div>
+          <button id="btnImportUrl" class="btn btn-ai">取り込む</button>
+        </div>
+        <p class="lede" id="importStatus" hidden></p>
+      </div>
+    </div>
+
+    <div id="editAiPanel" class="edit-stage-panel" hidden>
+      <button type="button" class="stage-back" id="btnAiPanelBack"><span id="aiPanelBackIcon"></span>別の方法を選ぶ</button>
+      <div class="edit-section">
+        <span class="section-label">AIレシピ予測</span>
+        <p class="lede lede-note"><span class="lede-note__icon"></span>お店で食べた料理のレシピを、写真や店舗情報からAIが推測します。写真・店舗名・店舗WEBサイト・補足情報のうち、わかるものだけ入力してください（すべて任意、いずれか1つ以上）。</p>
+      </div>
+
+      <div class="edit-section">
+        <span class="section-label">写真（任意）</span>
+        <div class="photo-upload" id="aiGuessPhotoUpload">
+          <div class="photo-upload__placeholder" id="aiGuessPhotoPlaceholder"></div>
+          <img id="aiGuessPhotoPreview" hidden alt="料理の写真">
+          <div>
+            <p class="card-meta">タップして写真を選択</p>
+            <button id="btnAiGuessRemovePhoto" class="btn btn-ghost" type="button" hidden>写真を削除</button>
+          </div>
+        </div>
+        <input id="aiGuessPhotoInput" type="file" accept="image/*" hidden>
+      </div>
+
+      <div class="edit-section">
         <div class="field">
-          <input id="editImportUrl" type="url" placeholder="https://...">
+          <label for="aiGuessStoreName">店舗名（任意）</label>
+          <input id="aiGuessStoreName" type="text" placeholder="例: ○○食堂">
         </div>
-        <button id="btnImportUrl" class="btn btn-secondary">取り込む</button>
-      </div>
-      <p class="lede" id="importStatus" hidden></p>
-    </div>
-
-    <div class="edit-section">
-      <span class="section-label">写真・アイコン</span>
-      <div class="photo-upload" id="photoUpload">
-        <div class="photo-upload__placeholder" id="photoPlaceholder"></div>
-        <img id="editPhotoPreview" hidden alt="レシピ写真">
-        <div>
-          <p class="card-meta">タップして写真を選択</p>
-          <button id="btnRemovePhoto" class="btn btn-ghost" type="button" hidden>写真を削除</button>
+        <div class="field">
+          <label for="aiGuessStoreUrl">店舗WEBサイト（任意）</label>
+          <input id="aiGuessStoreUrl" type="url" placeholder="https://...">
+          <p class="hint">わかれば、店舗のページから料理の傾向を読み取って推測の精度を上げます（取得できない場合は他の情報のみで推測します）。</p>
+        </div>
+        <div class="field">
+          <label for="aiGuessFreeText">補足情報（任意）</label>
+          <textarea id="aiGuessFreeText" class="autosize" rows="2" placeholder="例: 味噌ベースの豚汁ラーメンだった、辛さは控えめ、など"></textarea>
         </div>
       </div>
-      <input id="editPhotoInput" type="file" accept="image/*" hidden>
-      <div class="icon-picker" id="iconPicker"></div>
-      <button id="btnAiGuess" class="btn btn-secondary" type="button" style="margin-top: var(--space-3);" hidden></button>
-      <p class="lede" id="aiGuessStatus" hidden></p>
-    </div>
 
-    <div class="edit-section">
-      <div class="field">
-        <label for="editTitle">料理名</label>
-        <textarea id="editTitle" class="autosize" rows="1"></textarea>
-      </div>
-      <div class="field">
-        <label for="editStore">店舗名（任意）</label>
-        <textarea id="editStore" class="autosize" rows="1"></textarea>
-      </div>
-      <div class="field">
-        <label for="editCookingMinutes">調理時間（分・任意）</label>
-        <input id="editCookingMinutes" type="number" min="0" inputmode="numeric">
-        <p class="hint" id="cookingAutoHint" hidden>✨ 作り方から自動算出した時間です。目安として、必要に応じて修正してください。</p>
-      </div>
-      <div class="field">
-        <label for="editServings">人数（任意）</label>
-        <input id="editServings" type="number" min="0" inputmode="numeric" placeholder="例: 2">
-      </div>
-      <div class="field">
-        <label>フォルダ</label>
-        <div class="folder-select-row" id="editFolderChips"></div>
+      <div class="edit-section">
+        <button id="btnRunAiGuess" class="btn btn-ai" type="button"></button>
+        <p class="lede" id="aiGuessRunStatus" hidden></p>
+        <p class="hint" id="aiGuessNoKeyHint" hidden>設定画面の「AI機能」でGemini APIキーを登録すると使えます。</p>
       </div>
     </div>
 
-    <div class="edit-section">
-      <div class="edit-section__header">
-        <span class="section-label">材料</span>
-        <button id="btnAddIngredient" class="btn btn-secondary" type="button"></button>
+    <div id="editForm" hidden>
+      <div class="edit-section">
+        <span class="section-label">写真・アイコン</span>
+        <div class="photo-upload" id="photoUpload">
+          <div class="photo-upload__placeholder" id="photoPlaceholder"></div>
+          <img id="editPhotoPreview" hidden alt="レシピ写真">
+          <div>
+            <p class="card-meta">タップして写真を選択</p>
+            <button id="btnRemovePhoto" class="btn btn-ghost" type="button" hidden>写真を削除</button>
+          </div>
+        </div>
+        <input id="editPhotoInput" type="file" accept="image/*" hidden>
+        <div class="icon-picker" id="iconPicker"></div>
       </div>
-      <div id="ingredientRows"></div>
-    </div>
 
-    <div class="edit-section">
-      <div class="edit-section__header">
-        <span class="section-label">作り方</span>
-        <button id="btnAddStep" class="btn btn-secondary" type="button"></button>
+      <div class="edit-section">
+        <div class="field">
+          <label for="editTitle">料理名</label>
+          <textarea id="editTitle" class="autosize" rows="1"></textarea>
+        </div>
+        <div class="field">
+          <label for="editStore">店舗名（任意）</label>
+          <textarea id="editStore" class="autosize" rows="1"></textarea>
+        </div>
+        <div class="field">
+          <label for="editCookingMinutes">調理時間（分・任意）</label>
+          <input id="editCookingMinutes" type="number" min="0" inputmode="numeric">
+          <p class="badge-ai" id="cookingAutoHint" hidden>✨ AIが自動算出した時間です</p>
+        </div>
+        <div class="field">
+          <label for="editServings">人数（任意）</label>
+          <input id="editServings" type="number" min="0" inputmode="numeric" placeholder="例: 2">
+        </div>
+        <div class="field">
+          <label>フォルダ</label>
+          <div class="folder-select-row" id="editFolderChips"></div>
+        </div>
       </div>
-      <div id="stepRows"></div>
-    </div>
 
-    <div class="edit-section">
-      <div class="field">
-        <label for="editMemo">メモ</label>
-        <textarea id="editMemo" class="memo" rows="3"></textarea>
+      <div class="edit-section">
+        <div class="edit-section__header">
+          <span class="section-label">材料</span>
+          <button id="btnAddIngredient" class="btn btn-secondary" type="button"></button>
+        </div>
+        <div id="ingredientRows"></div>
+      </div>
+
+      <div class="edit-section">
+        <div class="edit-section__header">
+          <span class="section-label">作り方</span>
+          <button id="btnAddStep" class="btn btn-secondary" type="button"></button>
+        </div>
+        <div id="stepRows"></div>
+      </div>
+
+      <div class="edit-section">
+        <div class="field">
+          <label for="editMemo">メモ</label>
+          <textarea id="editMemo" class="memo" rows="3"></textarea>
+        </div>
       </div>
     </div>
   </main>
 
   <main id="view-settings" class="view" hidden>
-    <div class="settings-group">
-      <span class="section-label">AI機能（写真からレシピ推測）</span>
-      <p class="lede">Google AI Studioで無料取得できるGemini APIキーを登録すると、写真からレシピ内容を推測できます。キーはこの端末のブラウザ内にのみ保存され、Gemini APIに直接送信されます（このアプリ専用のサーバーはありません）。無料枠の範囲でご利用ください。</p>
-      <div class="field">
-        <label for="settingsGeminiKey">Gemini APIキー</label>
-        <input id="settingsGeminiKey" type="password" placeholder="AIza...">
-      </div>
-      <div class="field">
-        <label for="settingsGeminiModel">使用するモデル名</label>
-        <input id="settingsGeminiModel" type="text">
-        <p class="hint">推測に失敗する場合、モデルが古くなっている可能性があります。<a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer">利用可能なモデル一覧</a>を確認して変更してください。</p>
-      </div>
-      <a class="source-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">無料キーを取得する（Google AI Studio）</a>
-      <br><br>
-      <button id="btnSaveSettings" class="btn btn-primary">保存</button>
-      <p class="hint" id="settingsSavedNote" hidden>保存しました</p>
-    </div>
-    <div class="settings-group">
-      <span class="section-label">レシピURL取り込み</span>
-      <p class="lede">レシピサイトのURLを取り込む際、ブラウザの制約（CORS）を回避するための中継サービスを使用します。既定値のままで問題ない場合はそのままお使いください。</p>
-      <div class="field">
-        <label for="settingsCorsProxy">CORSプロキシURL</label>
-        <input id="settingsCorsProxy" type="text">
-      </div>
-    </div>
-
-    <div class="settings-group">
-      <span class="section-label">材料名の表記ゆれ辞書（買い物リスト用）</span>
-      <p class="lede">買い物リストは組み込みの表記ゆれ辞書（例:「じゃがいも」＝「ジャガイモ」）を使って材料をまとめます。組み込み辞書でカバーしきれない表記ゆれがあれば、ここで代表名と別名を追加してください。</p>
-      <div id="aliasList"></div>
-      <div class="url-import-row" style="margin-top: var(--space-3);">
-        <div class="field">
-          <input id="aliasCanonicalInput" type="text" placeholder="代表名（例: じゃがいも）">
-        </div>
-        <div class="field">
-          <input id="aliasVariantsInput" type="text" placeholder="別名（カンマ区切り）">
-        </div>
-        <button id="btnAddAlias" class="btn btn-secondary" type="button">追加</button>
-      </div>
+    <div id="settingsCategoryList" class="settings-menu">
+      <button class="settings-menu-row" type="button" data-category="ai">
+        <span class="settings-menu-row__icon settings-menu-row__icon--ai" data-icon="ai"></span>
+        <span class="settings-menu-row__body">
+          <span class="settings-menu-row__title">AI機能</span>
+          <span class="settings-menu-row__desc">写真からレシピを自動入力</span>
+        </span>
+        <span class="settings-menu-row__chevron" data-icon="chevron"></span>
+      </button>
+      <button class="settings-menu-row" type="button" data-category="import">
+        <span class="settings-menu-row__icon" data-icon="import"></span>
+        <span class="settings-menu-row__body">
+          <span class="settings-menu-row__title">レシピ取り込み</span>
+          <span class="settings-menu-row__desc">URLや他サイトからレシピを取り込む</span>
+        </span>
+        <span class="settings-menu-row__chevron" data-icon="chevron"></span>
+      </button>
+      <button class="settings-menu-row" type="button" data-category="aliases">
+        <span class="settings-menu-row__icon" data-icon="aliases"></span>
+        <span class="settings-menu-row__body">
+          <span class="settings-menu-row__title">材料辞書</span>
+          <span class="settings-menu-row__desc">買い物リストの表記ゆれ辞書</span>
+        </span>
+        <span class="settings-menu-row__chevron" data-icon="chevron"></span>
+      </button>
+      <button class="settings-menu-row" type="button" data-category="sync">
+        <span class="settings-menu-row__icon" data-icon="sync"></span>
+        <span class="settings-menu-row__body">
+          <span class="settings-menu-row__title">同期</span>
+          <span class="settings-menu-row__desc">複数端末でレシピを共有</span>
+        </span>
+        <span class="settings-menu-row__chevron" data-icon="chevron"></span>
+      </button>
     </div>
 
-    <div class="settings-group">
-      <span class="section-label">複数端末での同期</span>
-      <p class="lede">同期コードを知っている端末同士でレシピ・フォルダを共有できます。データは自分でデプロイしたCloudflareの環境に保存されます（事前準備が必要。SYNC_DEPLOY.md参照）。同期コードはパスワードの代わりになるため、家族など信頼できる相手とだけ共有してください。</p>
+    <div id="settingsCategoryDetail" class="settings-detail" hidden>
+      <button id="btnSettingsBack" class="settings-back" type="button">
+        <span id="settingsBackIcon"></span>
+        設定一覧に戻る
+      </button>
 
-      <div id="syncNotConnected">
+      <div class="settings-group" data-category-panel="ai">
+        <span class="section-label">AI機能</span>
+        <p class="lede lede-note"><span class="lede-note__icon"></span>写真からレシピ内容を自動入力するAI機能の設定です。</p>
         <div class="field">
-          <label for="settingsSyncWorkerUrl">同期サーバーURL</label>
-          <input id="settingsSyncWorkerUrl" type="text" placeholder="https://xxxx.yyyy.workers.dev">
+          <label for="settingsGeminiKey">Gemini APIキー</label>
+          <input id="settingsGeminiKey" type="password" placeholder="AIza...">
+          <p class="hint">Google AI Studioで無料取得できます。キーはこの端末にのみ保存され、Gemini APIに直接送信されます。</p>
         </div>
-        <button id="btnStartSync" class="btn btn-primary" type="button">同期を開始する（新しい同期コードを発行）</button>
+        <div class="field">
+          <label for="settingsGeminiModel">使用するモデル名</label>
+          <input id="settingsGeminiModel" type="text">
+          <p class="hint">推測に失敗する場合、モデルが古くなっている可能性があります。<a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer">利用可能なモデル一覧</a>を確認して変更してください。</p>
+        </div>
+        <a class="btn btn-secondary" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="display: flex; width: fit-content; margin: var(--space-2) 0 var(--space-3);">無料キーを取得する（Google AI Studio）</a>
+        <button id="btnSaveSettings" class="btn btn-primary">保存</button>
+        <p class="hint" id="settingsSavedNote" hidden>保存しました</p>
+      </div>
+
+      <div class="settings-group" data-category-panel="import">
+        <span class="section-label">レシピ取り込み</span>
+        <p class="lede lede-note"><span class="lede-note__icon"></span>外部のレシピをこのアプリに取り込むための設定です。</p>
+
+        <div class="settings-subsection">
+          <span class="settings-subsection__title">URLで取り込む</span>
+          <p class="lede lede-note"><span class="lede-note__icon"></span>レシピ編集画面でURLを取り込む際に使う中継サーバーです。通常は変更不要です。</p>
+          <div class="field">
+            <label for="settingsCorsProxy">CORSプロキシURL</label>
+            <input id="settingsCorsProxy" type="text">
+          </div>
+        </div>
+
+        <div class="settings-subsection">
+          <span class="settings-subsection__title">レシピお引越し（まとめて取り込み）</span>
+          <p class="lede lede-note"><span class="lede-note__icon"></span>他のレシピサイト（デリッシュキッチンなど）で保存したレシピのURLをまとめて貼り付けると、一括で取り込みます。1行に1件ずつ入力してください。</p>
+          <div class="field">
+            <label for="bulkImportUrls">レシピURL一覧</label>
+            <textarea id="bulkImportUrls" rows="5" placeholder="https://...
+https://...
+https://..."></textarea>
+          </div>
+          <button id="btnBulkImport" class="btn btn-primary" type="button">一括インポート</button>
+          <p class="hint" id="bulkImportStatus" hidden></p>
+        </div>
+      </div>
+
+      <div class="settings-group" data-category-panel="aliases">
+        <span class="section-label">材料辞書（買い物リスト用）</span>
+        <p class="lede lede-note"><span class="lede-note__icon"></span>買い物リストで材料をまとめる際に使う、表記ゆれ（例:「じゃがいも」＝「ジャガイモ」）の辞書です。組み込み辞書で足りない分だけ追加してください。</p>
+        <div id="aliasList"></div>
         <div class="url-import-row" style="margin-top: var(--space-3);">
           <div class="field">
-            <input id="joinSyncCodeInput" type="text" placeholder="他の端末の同期コードを入力">
+            <input id="aliasCanonicalInput" type="text" placeholder="代表名（例: じゃがいも）">
           </div>
-          <button id="btnJoinSync" class="btn btn-secondary" type="button">参加する</button>
+          <div class="field">
+            <input id="aliasVariantsInput" type="text" placeholder="別名（カンマ区切り）">
+          </div>
+          <button id="btnAddAlias" class="btn btn-secondary" type="button">追加</button>
         </div>
       </div>
 
-      <div id="syncConnected" hidden>
-        <div id="syncQrCode" class="sync-qr"></div>
-        <p class="card-meta">同期コード: <strong id="syncCodeText"></strong></p>
-        <button id="btnCopySyncCode" class="btn btn-ghost" type="button">コードをコピー</button>
-        <p class="hint" id="syncLastSyncedText"></p>
-        <br>
-        <button id="btnSyncNow" class="btn btn-secondary" type="button">今すぐ同期</button>
-        <button id="btnStopSync" class="btn btn-danger" type="button">この端末の同期を解除する</button>
-      </div>
+      <div class="settings-group" data-category-panel="sync">
+        <span class="section-label">複数端末での同期</span>
+        <p class="lede lede-note"><span class="lede-note__icon"></span>同期コードを共有した端末同士で、レシピ・フォルダを共有できます。同期コードはパスワード代わりなので、家族など信頼できる相手とだけ共有してください（事前準備が必要。SYNC_DEPLOY.md参照）。</p>
 
-      <p class="hint" id="syncStatus" hidden></p>
+        <div id="syncNotConnected">
+          <div class="field">
+            <label for="settingsSyncWorkerUrl">同期サーバーURL</label>
+            <input id="settingsSyncWorkerUrl" type="text" placeholder="https://xxxx.yyyy.workers.dev">
+          </div>
+          <button id="btnStartSync" class="btn btn-primary" type="button">同期を開始する（新しい同期コードを発行）</button>
+          <div class="url-import-row" style="margin-top: var(--space-3);">
+            <div class="field">
+              <input id="joinSyncCodeInput" type="text" placeholder="他の端末の同期コードを入力">
+            </div>
+            <button id="btnJoinSync" class="btn btn-secondary" type="button">参加する</button>
+          </div>
+        </div>
+
+        <div id="syncConnected" hidden>
+          <div id="syncQrCode" class="sync-qr"></div>
+          <p class="card-meta">同期コード: <strong id="syncCodeText"></strong></p>
+          <button id="btnCopySyncCode" class="btn btn-ghost" type="button">コードをコピー</button>
+          <p class="hint" id="syncLastSyncedText"></p>
+          <br>
+          <button id="btnSyncNow" class="btn btn-secondary" type="button">今すぐ同期</button>
+          <button id="btnStopSync" class="btn btn-danger" type="button">この端末の同期を解除する</button>
+        </div>
+
+        <p class="hint" id="syncStatus" hidden></p>
+      </div>
     </div>
   </main>
 </div>

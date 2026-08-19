@@ -1,12 +1,22 @@
 import { getGeminiApiKey, setGeminiApiKey, getGeminiModel, setGeminiModel, getCorsProxyUrl, setCorsProxyUrl, getSyncLastPushedAt, getSyncLastPulledAt } from '../data/settings.js';
 import { DEFAULT_CORS_PROXY } from '../features/urlImport.js';
+import { parseUrlList, bulkImportRecipes } from '../features/bulkImport.js';
 import { generateSyncCode, startSync, stopSync, fullSync, isSyncEnabled, getSyncCode, getSyncWorkerUrl, pushChanges, pushDeletion } from '../data/sync.js';
 import { renderQrCode } from '../features/qrCode.js';
 import { getAllUserIngredientAliases, putUserIngredientAlias, deleteUserIngredientAlias, genId } from '../data/db.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
 import { showToast } from '../utils/toast.js';
+import { showImportResult } from '../utils/importResultDialog.js';
 import { reportSyncError } from '../utils/syncFeedback.js';
 import { UI_ICONS } from '../icons.js';
+
+const CATEGORY_ICONS = {
+  ai: UI_ICONS.sparkle,
+  import: UI_ICONS.link,
+  aliases: UI_ICONS.cart,
+  sync: UI_ICONS.sync,
+  chevron: UI_ICONS.chevronRight,
+};
 
 const els = {};
 let onSyncDataChanged = () => {};
@@ -16,6 +26,13 @@ function q(id) { return document.getElementById(id); }
 
 export function initSettings(syncDataChangedCallback) {
   onSyncDataChanged = syncDataChangedCallback || onSyncDataChanged;
+
+  initCategoryNav();
+
+  els.bulkImportUrls = q('bulkImportUrls');
+  els.btnBulkImport = q('btnBulkImport');
+  els.bulkImportStatus = q('bulkImportStatus');
+  els.btnBulkImport.addEventListener('click', handleBulkImport);
 
   els.geminiKey = q('settingsGeminiKey');
   els.geminiModel = q('settingsGeminiModel');
@@ -90,6 +107,67 @@ export function initSettings(syncDataChangedCallback) {
     renderSyncSection();
     showToast('同期を解除しました');
   });
+}
+
+function initCategoryNav() {
+  els.categoryList = q('settingsCategoryList');
+  els.categoryDetail = q('settingsCategoryDetail');
+  els.categoryPanels = Array.from(document.querySelectorAll('[data-category-panel]'));
+  els.btnSettingsBack = q('btnSettingsBack');
+  q('settingsBackIcon').innerHTML = UI_ICONS.back;
+
+  for (const el of document.querySelectorAll('#settingsCategoryList [data-icon]')) {
+    el.innerHTML = CATEGORY_ICONS[el.dataset.icon] || '';
+  }
+  for (const row of document.querySelectorAll('.settings-menu-row')) {
+    row.addEventListener('click', () => openCategory(row.dataset.category));
+  }
+  els.btnSettingsBack.addEventListener('click', showCategoryList);
+}
+
+function openCategory(category) {
+  els.categoryList.hidden = true;
+  els.categoryDetail.hidden = false;
+  for (const panel of els.categoryPanels) {
+    panel.hidden = panel.dataset.categoryPanel !== category;
+  }
+}
+
+function showCategoryList() {
+  els.categoryDetail.hidden = true;
+  els.categoryList.hidden = false;
+}
+
+async function handleBulkImport() {
+  const urls = parseUrlList(els.bulkImportUrls.value);
+  if (urls.length === 0) {
+    showToast('レシピのURLを1件以上入力してください');
+    return;
+  }
+  els.btnBulkImport.disabled = true;
+  els.bulkImportStatus.hidden = false;
+  const corsProxyUrl = getCorsProxyUrl(DEFAULT_CORS_PROXY);
+  const results = await bulkImportRecipes(urls, corsProxyUrl, (i, total, url) => {
+    els.bulkImportStatus.textContent = `取り込み中... (${i + 1}/${total}) ${url}`;
+  });
+  els.bulkImportStatus.hidden = true;
+  els.btnBulkImport.disabled = false;
+  els.bulkImportUrls.value = '';
+
+  const successCount = results.filter((r) => r.status === 'success').length;
+  const partialCount = results.filter((r) => r.status === 'partial').length;
+  const failedCount = results.length - successCount - partialCount;
+  const allSuccess = failedCount === 0 && partialCount === 0;
+  showImportResult({
+    success: allSuccess,
+    title: allSuccess ? '取り込み完了' : '取り込みが終わりました',
+    message: allSuccess
+      ? `${successCount}件のレシピを取り込みました。`
+      : `全${results.length}件中、完全に取り込めたもの ${successCount}件、一部のみ ${partialCount}件、失敗 ${failedCount}件でした。一部・失敗したレシピは、レシピ一覧から内容を確認・補完してください。`,
+  });
+
+  await onSyncDataChanged();
+  pushChanges().catch(reportSyncError);
 }
 
 function showSyncStatus(message) {
@@ -193,6 +271,7 @@ function renderAliasList() {
 }
 
 export async function renderSettings() {
+  showCategoryList();
   els.geminiKey.value = getGeminiApiKey();
   els.geminiModel.value = getGeminiModel();
   els.corsProxy.value = getCorsProxyUrl(DEFAULT_CORS_PROXY);

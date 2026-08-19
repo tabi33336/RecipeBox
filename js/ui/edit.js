@@ -1,8 +1,8 @@
 import { bindAutosize, autosize } from '../utils/autoExpand.js';
 import { applyAutoUnit } from '../features/unitSuggest.js';
 import { applyAutoCookingMinutes } from '../features/cookingTime.js';
-import { importRecipeFromUrl, DEFAULT_CORS_PROXY } from '../features/urlImport.js';
-import { guessRecipeFromPhoto } from '../features/aiGuess.js';
+import { importRecipeFromUrl, fetchHtml, parseOgTagsFromHtml, DEFAULT_CORS_PROXY } from '../features/urlImport.js';
+import { guessRecipeFromContext } from '../features/aiGuess.js';
 import { getGeminiApiKey, getGeminiModel, getCorsProxyUrl } from '../data/settings.js';
 import { iconMarkup, ICON_KEYS, UI_ICONS } from '../icons.js';
 import { genId } from '../data/db.js';
@@ -12,6 +12,7 @@ import { showImportResult } from '../utils/importResultDialog.js';
 const els = {};
 let currentIcon = 'utensils';
 let currentPhotoBlob = null;
+let aiGuessPhotoBlob = null;
 let importedSourceURL = null;
 let selectedFolderId = null;
 let lastAutoCookingMinutes = null;
@@ -20,6 +21,13 @@ let folders = [];
 function q(id) { return document.getElementById(id); }
 
 export function initEdit() {
+  els.chooser = q('editChooser');
+  els.urlPanel = q('editUrlPanel');
+  els.aiPanel = q('editAiPanel');
+  els.form = q('editForm');
+  els.btnUrlPanelBack = q('btnUrlPanelBack');
+  els.btnAiPanelBack = q('btnAiPanelBack');
+
   els.importUrl = q('editImportUrl');
   els.btnImportUrl = q('btnImportUrl');
   els.importStatus = q('importStatus');
@@ -29,8 +37,19 @@ export function initEdit() {
   els.photoPlaceholder = q('photoPlaceholder');
   els.btnRemovePhoto = q('btnRemovePhoto');
   els.iconPicker = q('iconPicker');
-  els.btnAiGuess = q('btnAiGuess');
-  els.aiGuessStatus = q('aiGuessStatus');
+
+  els.aiGuessPhotoUpload = q('aiGuessPhotoUpload');
+  els.aiGuessPhotoInput = q('aiGuessPhotoInput');
+  els.aiGuessPhotoPreview = q('aiGuessPhotoPreview');
+  els.aiGuessPhotoPlaceholder = q('aiGuessPhotoPlaceholder');
+  els.btnAiGuessRemovePhoto = q('btnAiGuessRemovePhoto');
+  els.aiGuessStoreName = q('aiGuessStoreName');
+  els.aiGuessStoreUrl = q('aiGuessStoreUrl');
+  els.aiGuessFreeText = q('aiGuessFreeText');
+  els.btnRunAiGuess = q('btnRunAiGuess');
+  els.aiGuessRunStatus = q('aiGuessRunStatus');
+  els.aiGuessNoKeyHint = q('aiGuessNoKeyHint');
+
   els.title = q('editTitle');
   els.store = q('editStore');
   els.cookingMinutes = q('editCookingMinutes');
@@ -46,7 +65,13 @@ export function initEdit() {
   els.btnAddIngredient.innerHTML = `${UI_ICONS.plus} 材料を追加`;
   els.btnAddStep.innerHTML = `${UI_ICONS.plus} 手順を追加`;
   els.photoPlaceholder.innerHTML = UI_ICONS.camera;
-  els.btnAiGuess.innerHTML = `${UI_ICONS.sparkle} 写真からAIでレシピを推測`;
+  els.aiGuessPhotoPlaceholder.innerHTML = UI_ICONS.camera;
+  els.btnRunAiGuess.innerHTML = `${UI_ICONS.sparkle} AIレシピ予測を実行`;
+  q('chooserIconAi').innerHTML = UI_ICONS.sparkle;
+  q('chooserIconUrl').innerHTML = UI_ICONS.link;
+  q('chooserIconManual').innerHTML = UI_ICONS.edit;
+  q('urlPanelBackIcon').innerHTML = UI_ICONS.back;
+  q('aiPanelBackIcon').innerHTML = UI_ICONS.back;
 
   els.iconPicker.innerHTML = '';
   for (const key of ICON_KEYS) {
@@ -75,6 +100,20 @@ export function initEdit() {
     renderPhotoPreview();
   });
 
+  els.aiGuessPhotoUpload.addEventListener('click', () => els.aiGuessPhotoInput.click());
+  els.aiGuessPhotoInput.addEventListener('change', () => {
+    const file = els.aiGuessPhotoInput.files[0];
+    if (!file) return;
+    aiGuessPhotoBlob = file;
+    renderAiGuessPhotoPreview();
+  });
+  els.btnAiGuessRemovePhoto.addEventListener('click', (e) => {
+    e.stopPropagation();
+    aiGuessPhotoBlob = null;
+    els.aiGuessPhotoInput.value = '';
+    renderAiGuessPhotoPreview();
+  });
+
   els.cookingMinutes.addEventListener('input', () => {
     updateCookingHint();
   });
@@ -83,10 +122,27 @@ export function initEdit() {
   els.btnAddStep.addEventListener('click', () => addStepRow());
 
   els.btnImportUrl.addEventListener('click', handleUrlImport);
-  els.btnAiGuess.addEventListener('click', handleAiGuess);
+  els.btnRunAiGuess.addEventListener('click', handleRunAiGuess);
+
+  for (const card of els.chooser.querySelectorAll('.edit-chooser__card')) {
+    card.addEventListener('click', () => {
+      const choice = card.dataset.choose;
+      showEditStage(choice === 'manual' ? 'form' : choice);
+    });
+  }
+  els.btnUrlPanelBack.addEventListener('click', () => showEditStage('chooser'));
+  els.btnAiPanelBack.addEventListener('click', () => showEditStage('chooser'));
 
   bindAutosize(els.title);
   bindAutosize(els.store);
+  bindAutosize(els.aiGuessFreeText);
+}
+
+function showEditStage(stage) {
+  els.chooser.hidden = stage !== 'chooser';
+  els.urlPanel.hidden = stage !== 'url';
+  els.aiPanel.hidden = stage !== 'ai';
+  els.form.hidden = stage !== 'form';
 }
 
 function renderIconPicker() {
@@ -106,6 +162,20 @@ function renderPhotoPreview() {
     els.photoPreview.src = '';
     els.photoPlaceholder.hidden = false;
     els.btnRemovePhoto.hidden = true;
+  }
+}
+
+function renderAiGuessPhotoPreview() {
+  if (aiGuessPhotoBlob) {
+    els.aiGuessPhotoPreview.src = URL.createObjectURL(aiGuessPhotoBlob);
+    els.aiGuessPhotoPreview.hidden = false;
+    els.aiGuessPhotoPlaceholder.hidden = true;
+    els.btnAiGuessRemovePhoto.hidden = false;
+  } else {
+    els.aiGuessPhotoPreview.hidden = true;
+    els.aiGuessPhotoPreview.src = '';
+    els.aiGuessPhotoPlaceholder.hidden = false;
+    els.btnAiGuessRemovePhoto.hidden = true;
   }
 }
 
@@ -362,28 +432,65 @@ async function handleUrlImport() {
     });
   } finally {
     els.btnImportUrl.disabled = false;
+    showEditStage('form');
   }
 }
 
-async function handleAiGuess() {
+async function fetchStoreWebsiteContext(url) {
+  try {
+    const corsProxyUrl = getCorsProxyUrl(DEFAULT_CORS_PROXY);
+    const html = await fetchHtml(url, corsProxyUrl);
+    const og = parseOgTagsFromHtml(html);
+    if (!og) return '';
+    return [og.title, og.description].filter(Boolean).join('\n');
+  } catch {
+    return '';
+  }
+}
+
+async function handleRunAiGuess() {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    alert('設定画面でGemini APIキーを登録してください。');
+    alert('設定画面の「AI機能」でGemini APIキーを登録してください。');
     return;
   }
-  if (!currentPhotoBlob) {
-    alert('先に写真を選択してください。');
+  const storeName = els.aiGuessStoreName.value.trim();
+  const storeUrl = els.aiGuessStoreUrl.value.trim();
+  const freeText = els.aiGuessFreeText.value.trim();
+  if (!aiGuessPhotoBlob && !storeName && !storeUrl && !freeText) {
+    alert('写真・店舗名・店舗WEBサイト・補足情報のいずれか1つ以上を入力してください。');
     return;
   }
-  els.aiGuessStatus.hidden = false;
-  els.aiGuessStatus.textContent = 'AIがレシピを推測しています...';
-  els.btnAiGuess.disabled = true;
+
+  els.aiGuessRunStatus.hidden = false;
+  els.aiGuessRunStatus.textContent = 'AIがレシピを推測しています...';
+  els.btnRunAiGuess.disabled = true;
   try {
+    let storeInfo = '';
+    if (storeUrl) {
+      els.aiGuessRunStatus.textContent = '店舗WEBサイトを確認しています...';
+      storeInfo = await fetchStoreWebsiteContext(storeUrl);
+      els.aiGuessRunStatus.textContent = 'AIがレシピを推測しています...';
+    }
+
     const model = getGeminiModel();
-    const result = await guessRecipeFromPhoto(currentPhotoBlob, apiKey, model);
+    const result = await guessRecipeFromContext(
+      { photoBlob: aiGuessPhotoBlob, storeName, storeInfo, freeText },
+      apiKey,
+      model
+    );
+
     if (result.title) {
       els.title.value = result.title;
       autosize(els.title);
+    }
+    if (storeName) {
+      els.store.value = storeName;
+      autosize(els.store);
+    }
+    if (aiGuessPhotoBlob) {
+      currentPhotoBlob = aiGuessPhotoBlob;
+      renderPhotoPreview();
     }
     if (result.ingredients.length > 0) {
       els.ingredientRows.innerHTML = '';
@@ -398,11 +505,12 @@ async function handleAiGuess() {
       lastAutoCookingMinutes = String(result.cookingMinutes);
       updateCookingHint();
     }
-    els.aiGuessStatus.textContent = '推測しました。内容を確認・修正してください。';
+    els.aiGuessRunStatus.hidden = true;
+    showEditStage('form');
   } catch (err) {
-    els.aiGuessStatus.textContent = `推測に失敗しました: ${err.message}`;
+    els.aiGuessRunStatus.textContent = `推測に失敗しました: ${err.message}`;
   } finally {
-    els.btnAiGuess.disabled = false;
+    els.btnRunAiGuess.disabled = false;
   }
 }
 
@@ -410,14 +518,23 @@ export function loadRecipeIntoForm(recipe, foldersList) {
   folders = foldersList || [];
   currentIcon = recipe?.icon || 'utensils';
   currentPhotoBlob = recipe?.image || null;
+  aiGuessPhotoBlob = null;
   importedSourceURL = recipe?.sourceUrl || null;
   selectedFolderId = recipe?.folderId ?? null;
   lastAutoCookingMinutes = null;
 
+  showEditStage(recipe ? 'form' : 'chooser');
   els.importUrl.value = '';
   els.importStatus.hidden = true;
-  els.aiGuessStatus.hidden = true;
-  els.btnAiGuess.hidden = !getGeminiApiKey();
+
+  els.aiGuessStoreName.value = '';
+  els.aiGuessStoreUrl.value = '';
+  els.aiGuessFreeText.value = '';
+  els.aiGuessRunStatus.hidden = true;
+  els.aiGuessPhotoInput.value = '';
+  renderAiGuessPhotoPreview();
+  els.aiGuessNoKeyHint.hidden = !!getGeminiApiKey();
+  els.btnRunAiGuess.hidden = !getGeminiApiKey();
 
   els.title.value = recipe?.title || '';
   els.store.value = recipe?.storeName || '';

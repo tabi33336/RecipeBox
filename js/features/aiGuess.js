@@ -7,10 +7,17 @@ function blobToBase64(blob) {
   });
 }
 
-const PROMPT = `この写真に写っている料理を見て、レシピを推測してください。
-実際に写真から読み取れる内容と、一般的なレシピ知識から妥当な内容を組み合わせて構いません。
+function buildPrompt({ storeName, storeInfo, freeText }) {
+  return `あなたは「お店で食べた料理」を家庭で再現するためのレシピ推測アシスタントです。
+以下の情報（と写真があれば写真）をもとに、実際に食べたと思われる料理を特定し、家庭で作れるレシピを推測してください。
+情報から読み取れる内容と、一般的な料理知識から妥当な内容を組み合わせて構いません。
 日本語で、指定したJSON形式のみを出力してください。分量が分からない材料は amount と unit を空文字にしてください。
-調理時間が分からない場合は cookingMinutes を null にしてください。`;
+調理時間が分からない場合は cookingMinutes を null にしてください。
+
+【店舗名】${storeName || '不明'}
+【店舗情報（WEBサイトより）】${storeInfo || 'なし'}
+【補足情報】${freeText || 'なし'}`;
+}
 
 const RESPONSE_SCHEMA = {
   type: 'object',
@@ -34,16 +41,22 @@ const RESPONSE_SCHEMA = {
   required: ['title', 'ingredients', 'steps'],
 };
 
-export async function guessRecipeFromPhoto(photoBlob, apiKey, model) {
-  const base64 = await blobToBase64(photoBlob);
+/**
+ * Guesses a recipe for a dish eaten at a restaurant/store, from whatever
+ * context is available: a photo, the store name, text scraped from the
+ * store's website, and free-form notes. Every field is optional individually
+ * (callers should require at least one to be present before calling this).
+ */
+export async function guessRecipeFromContext({ photoBlob, storeName, storeInfo, freeText }, apiKey, model) {
+  const parts = [{ text: buildPrompt({ storeName, storeInfo, freeText }) }];
+  if (photoBlob) {
+    const base64 = await blobToBase64(photoBlob);
+    parts.push({ inline_data: { mime_type: photoBlob.type || 'image/jpeg', data: base64 } });
+  }
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body = {
-    contents: [{
-      parts: [
-        { text: PROMPT },
-        { inline_data: { mime_type: photoBlob.type || 'image/jpeg', data: base64 } },
-      ],
-    }],
+    contents: [{ parts }],
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,

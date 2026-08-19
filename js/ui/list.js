@@ -4,6 +4,19 @@ import { formatIngredient, sortRecipes, SORT_LABELS } from '../data/recipeUtils.
 const els = {};
 let cb = {};
 
+const PLACEHOLDER_CLASSES = [
+  'recipe-card__thumb--ph1',
+  'recipe-card__thumb--ph2',
+  'recipe-card__thumb--ph3',
+  'recipe-card__thumb--ph4',
+];
+
+function hashRecipeId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 function q(id) { return document.getElementById(id); }
 
 export function initList(callbacks) {
@@ -15,9 +28,11 @@ export function initList(callbacks) {
   els.folderChips = q('folderChips');
   els.recipeList = q('recipeList');
   els.emptyState = q('listEmptyState');
+  els.btnEmptyStateAdd = q('btnEmptyStateAdd');
 
   els.searchIcon.innerHTML = UI_ICONS.search;
   els.btnSort.innerHTML = UI_ICONS.sort;
+  els.btnEmptyStateAdd.addEventListener('click', () => cb.onAddRecipe());
 
   els.searchInput.addEventListener('input', () => cb.onSearchInput(els.searchInput.value));
 
@@ -103,6 +118,7 @@ export function renderList(state) {
       img.alt = '';
       thumb.appendChild(img);
     } else {
+      thumb.classList.add(PLACEHOLDER_CLASSES[hashRecipeId(recipe.id) % PLACEHOLDER_CLASSES.length]);
       thumb.innerHTML = iconMarkup(recipe.icon || 'utensils');
     }
 

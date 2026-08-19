@@ -35,6 +35,35 @@ export function getMonthGrid(year, month) {
   return days;
 }
 
+/** Returns 7 Date objects (Sun-start) for the week containing the given date. */
+export function getWeekGrid(date) {
+  const start = new Date(date);
+  start.setDate(start.getDate() - start.getDay());
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+export function formatWeekdayLabel(date) {
+  return WEEKDAY_LABELS[date.getDay()];
+}
+
+export function formatWeekRangeLabel(days) {
+  const start = days[0];
+  const end = days[6];
+  const startStr = `${start.getMonth() + 1}/${start.getDate()}`;
+  const endStr = start.getMonth() === end.getMonth()
+    ? `${end.getDate()}`
+    : `${end.getMonth() + 1}/${end.getDate()}`;
+  return `${startStr}〜${endStr}`;
+}
+
 export function groupEntriesByDate(entries) {
   const map = new Map();
   for (const entry of entries) {
