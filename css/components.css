@@ -464,3 +464,34 @@
   gap: var(--space-2);
   justify-content: flex-end;
 }
+
+.import-result-box {
+  max-width: 360px;
+  text-align: center;
+}
+.import-result-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-4);
+}
+.import-result-icon svg {
+  width: 32px;
+  height: 32px;
+}
+.import-result-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.import-result-message {
+  font-size: 0.89rem;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-bottom: var(--space-4);
+}

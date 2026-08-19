@@ -7,6 +7,7 @@ import { getGeminiApiKey, getGeminiModel, getCorsProxyUrl } from '../data/settin
 import { iconMarkup, ICON_KEYS, UI_ICONS } from '../icons.js';
 import { genId } from '../data/db.js';
 import { isBlankIngredient, parseAmount, AMOUNT_PRESETS } from '../data/recipeUtils.js';
+import { showImportResult } from '../utils/importResultDialog.js';
 
 const els = {};
 let currentIcon = 'utensils';
@@ -310,7 +311,24 @@ async function handleUrlImport() {
         currentPhotoBlob = result.photoBlob;
         renderPhotoPreview();
       }
-      els.importStatus.textContent = '取り込みました。内容を確認・修正してください。';
+      els.importStatus.hidden = true;
+      const hasIngredients = result.ingredients && result.ingredients.length > 0;
+      const hasSteps = result.steps && result.steps.length > 0;
+      if (hasIngredients && hasSteps) {
+        showImportResult({
+          success: true,
+          title: '取り込み完了',
+          message: '材料と作り方を取り込みました。内容を確認してください。',
+        });
+      } else {
+        showImportResult({
+          success: false,
+          title: '一部のみ取り込みました',
+          message: hasIngredients
+            ? '材料は取り込めましたが、作り方は取得できませんでした。手動で入力してください。'
+            : '作り方は取り込めましたが、材料は取得できませんでした。手動で入力してください。',
+        });
+      }
     } else if (result && result.kind === 'caption') {
       if (result.photoBlob) {
         currentPhotoBlob = result.photoBlob;
@@ -320,13 +338,28 @@ async function handleUrlImport() {
         const note = `【取り込んだ投稿文】\n${result.caption}`;
         els.memo.value = els.memo.value.trim() ? `${els.memo.value}\n\n${note}` : note;
       }
-      els.importStatus.textContent = 'このサイトは材料・手順の自動取得に対応していないため、写真と投稿文だけを取り込みました。メモ欄の投稿文を見ながら、料理名・材料・手順を手動で入力してください。';
+      els.importStatus.hidden = true;
+      showImportResult({
+        success: false,
+        title: '一部のみ取り込みました',
+        message: 'このサイトからは材料・作り方を自動取得できませんでした（会員限定コンテンツの場合や、このアプリが対応していないサイトの可能性があります）。写真と本文をメモ欄に取り込んだので、内容を確認しながら料理名・材料・作り方を手動で入力してください。',
+      });
     } else {
-      els.importStatus.textContent = '構造化データが見つかりませんでした。URLはリンクとして保存されます。手動で入力してください。';
+      els.importStatus.hidden = true;
+      showImportResult({
+        success: false,
+        title: '取り込めませんでした',
+        message: 'このURLからレシピ情報を取得できませんでした。URLはリンクとして保存されるので、手動で入力してください。',
+      });
     }
   } catch (err) {
     importedSourceURL = url;
-    els.importStatus.textContent = `取り込みに失敗しました（${err.message}）。URLはリンクとして保存されます。手動で入力してください。`;
+    els.importStatus.hidden = true;
+    showImportResult({
+      success: false,
+      title: '取り込みに失敗しました',
+      message: `通信エラーが発生しました（${err.message}）。URLはリンクとして保存されるので、手動で入力してください。`,
+    });
   } finally {
     els.btnImportUrl.disabled = false;
   }
