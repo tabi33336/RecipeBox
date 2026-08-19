@@ -29,6 +29,8 @@
         <div id="actionsEdit" hidden>
           <button id="btnSaveRecipe" class="btn btn-primary">保存</button>
         </div>
+        <div id="actionsCalendar" hidden></div>
+        <div id="actionsShopping" hidden></div>
         <div id="actionsSettings" hidden></div>
       </div>
     </div>
@@ -58,6 +60,62 @@
     <div class="recipe-list" id="recipeList"></div>
     <div class="empty-state" id="listEmptyState" hidden>
       <p>まだレシピがありません。右上の「＋」から追加しましょう。</p>
+    </div>
+  </main>
+
+  <main id="view-calendar" class="view" hidden>
+    <div class="calendar-toolbar">
+      <div class="calendar-toolbar__nav">
+        <button id="btnCalPrevMonth" class="btn btn-icon" aria-label="前の月"></button>
+        <span id="calMonthLabel" class="calendar-month-label"></span>
+        <button id="btnCalNextMonth" class="btn btn-icon" aria-label="次の月"></button>
+      </div>
+      <button id="btnCalToday" class="btn btn-ghost" type="button">今日</button>
+    </div>
+    <div class="calendar-weekdays">
+      <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+  </main>
+
+  <main id="view-shopping" class="view" hidden>
+    <div class="edit-section">
+      <span class="section-label">期間を指定して作成</span>
+      <div class="shopping-period-row">
+        <input id="shoppingStartDate" type="date">
+        <span>〜</span>
+        <input id="shoppingEndDate" type="date">
+      </div>
+      <div class="chip-row">
+        <button class="chip" type="button" data-preset="thisWeek">今週</button>
+        <button class="chip" type="button" data-preset="nextWeek">来週</button>
+      </div>
+      <button id="btnCreateShoppingList" class="btn btn-primary" type="button">作成する</button>
+    </div>
+
+    <div class="edit-section" id="shoppingListSection" hidden>
+      <div class="edit-section__header">
+        <span class="section-label" id="shoppingListRangeLabel"></span>
+        <button id="btnDeleteShoppingList" class="btn btn-icon"></button>
+      </div>
+      <div id="shoppingListItems"></div>
+      <div class="url-import-row" style="margin-top: var(--space-4);">
+        <div class="field">
+          <input id="shoppingManualName" type="text" placeholder="品目を追加">
+        </div>
+        <div class="field" style="max-width: 90px;">
+          <input id="shoppingManualAmount" type="text" placeholder="分量">
+        </div>
+        <div class="field" style="max-width: 90px;">
+          <input id="shoppingManualUnit" type="text" placeholder="単位">
+        </div>
+        <button id="btnAddManualItem" class="btn btn-secondary" type="button">追加</button>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <span class="section-label">過去の買い物リスト</span>
+      <div id="shoppingHistoryList" style="margin-top: var(--space-3);"></div>
     </div>
   </main>
 
@@ -127,6 +185,10 @@
         <p class="hint" id="cookingAutoHint" hidden>✨ 作り方から自動算出した時間です。目安として、必要に応じて修正してください。</p>
       </div>
       <div class="field">
+        <label for="editServings">人数（任意）</label>
+        <input id="editServings" type="number" min="0" inputmode="numeric" placeholder="例: 2">
+      </div>
+      <div class="field">
         <label>フォルダ</label>
         <div class="folder-select-row" id="editFolderChips"></div>
       </div>
@@ -182,6 +244,52 @@
         <input id="settingsCorsProxy" type="text">
       </div>
     </div>
+
+    <div class="settings-group">
+      <span class="section-label">材料名の表記ゆれ辞書（買い物リスト用）</span>
+      <p class="lede">買い物リストは組み込みの表記ゆれ辞書（例:「じゃがいも」＝「ジャガイモ」）を使って材料をまとめます。組み込み辞書でカバーしきれない表記ゆれがあれば、ここで代表名と別名を追加してください。</p>
+      <div id="aliasList"></div>
+      <div class="url-import-row" style="margin-top: var(--space-3);">
+        <div class="field">
+          <input id="aliasCanonicalInput" type="text" placeholder="代表名（例: じゃがいも）">
+        </div>
+        <div class="field">
+          <input id="aliasVariantsInput" type="text" placeholder="別名（カンマ区切り）">
+        </div>
+        <button id="btnAddAlias" class="btn btn-secondary" type="button">追加</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <span class="section-label">複数端末での同期</span>
+      <p class="lede">同期コードを知っている端末同士でレシピ・フォルダを共有できます。データは自分でデプロイしたCloudflareの環境に保存されます（事前準備が必要。SYNC_DEPLOY.md参照）。同期コードはパスワードの代わりになるため、家族など信頼できる相手とだけ共有してください。</p>
+
+      <div id="syncNotConnected">
+        <div class="field">
+          <label for="settingsSyncWorkerUrl">同期サーバーURL</label>
+          <input id="settingsSyncWorkerUrl" type="text" placeholder="https://xxxx.yyyy.workers.dev">
+        </div>
+        <button id="btnStartSync" class="btn btn-primary" type="button">同期を開始する（新しい同期コードを発行）</button>
+        <div class="url-import-row" style="margin-top: var(--space-3);">
+          <div class="field">
+            <input id="joinSyncCodeInput" type="text" placeholder="他の端末の同期コードを入力">
+          </div>
+          <button id="btnJoinSync" class="btn btn-secondary" type="button">参加する</button>
+        </div>
+      </div>
+
+      <div id="syncConnected" hidden>
+        <div id="syncQrCode" class="sync-qr"></div>
+        <p class="card-meta">同期コード: <strong id="syncCodeText"></strong></p>
+        <button id="btnCopySyncCode" class="btn btn-ghost" type="button">コードをコピー</button>
+        <p class="hint" id="syncLastSyncedText"></p>
+        <br>
+        <button id="btnSyncNow" class="btn btn-secondary" type="button">今すぐ同期</button>
+        <button id="btnStopSync" class="btn btn-danger" type="button">この端末の同期を解除する</button>
+      </div>
+
+      <p class="hint" id="syncStatus" hidden></p>
+    </div>
   </main>
 </div>
 
@@ -211,7 +319,49 @@
   </div>
 </div>
 
+<div class="confirm-overlay" id="dayDetailOverlay">
+  <div class="confirm-box calendar-day-box">
+    <div class="edit-section__header">
+      <span class="section-label" id="dayDetailTitle"></span>
+      <button id="btnCloseDayDetail" class="btn btn-icon"></button>
+    </div>
+    <div id="dayDetailMealTypes"></div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="recipePickerOverlay">
+  <div class="confirm-box calendar-day-box">
+    <div class="edit-section__header">
+      <span class="section-label">レシピを選択</span>
+      <button id="btnCloseRecipePicker" class="btn btn-icon"></button>
+    </div>
+    <div class="field">
+      <input id="recipePickerSearch" type="text" placeholder="レシピ名で検索">
+    </div>
+    <div id="recipePickerList" class="recipe-picker-list"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
+<nav class="tab-bar" id="tabBar">
+  <button class="tab-bar__item" data-tab="list" type="button">
+    <span class="tab-bar__icon" id="tabIconList"></span>
+    <span>レシピ</span>
+  </button>
+  <button class="tab-bar__item" data-tab="calendar" type="button">
+    <span class="tab-bar__icon" id="tabIconCalendar"></span>
+    <span>カレンダー</span>
+  </button>
+  <button class="tab-bar__item" data-tab="shopping" type="button">
+    <span class="tab-bar__icon" id="tabIconShopping"></span>
+    <span>買い物</span>
+  </button>
+  <button class="tab-bar__item" data-tab="settings" type="button">
+    <span class="tab-bar__icon" id="tabIconSettings"></span>
+    <span>設定</span>
+  </button>
+</nav>
 
 <script type="module" src="js/main.js"></script>
 </body>

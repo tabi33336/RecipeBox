@@ -18,9 +18,9 @@ export function initDetail() {
 
 export function renderDetail(recipe, folder) {
   els.photo.innerHTML = '';
-  if (recipe.photo) {
+  if (recipe.image) {
     const img = document.createElement('img');
-    img.src = URL.createObjectURL(recipe.photo);
+    img.src = URL.createObjectURL(recipe.image);
     img.alt = '';
     els.photo.appendChild(img);
   } else {
@@ -35,9 +35,14 @@ export function renderDetail(recipe, folder) {
     span.textContent = `📍 ${recipe.storeName}`;
     els.meta.appendChild(span);
   }
-  if (recipe.cookingMinutes != null) {
+  if (recipe.cookingTime != null) {
     const span = document.createElement('span');
-    span.textContent = `⏱ ${recipe.cookingMinutes}分`;
+    span.textContent = `⏱ ${recipe.cookingTime}分`;
+    els.meta.appendChild(span);
+  }
+  if (recipe.servings != null) {
+    const span = document.createElement('span');
+    span.textContent = `👥 ${recipe.servings}人分`;
     els.meta.appendChild(span);
   }
   if (folder) {
@@ -67,8 +72,8 @@ export function renderDetail(recipe, folder) {
     els.memoSection.hidden = true;
   }
 
-  if (recipe.sourceURL) {
-    els.sourceLink.href = recipe.sourceURL;
+  if (recipe.sourceUrl) {
+    els.sourceLink.href = recipe.sourceUrl;
     els.sourceLink.hidden = false;
   } else {
     els.sourceLink.hidden = true;

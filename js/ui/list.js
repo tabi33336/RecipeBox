@@ -97,9 +97,9 @@ export function renderList(state) {
 
     const thumb = document.createElement('div');
     thumb.className = 'recipe-card__thumb';
-    if (recipe.photo) {
+    if (recipe.image) {
       const img = document.createElement('img');
-      img.src = URL.createObjectURL(recipe.photo);
+      img.src = URL.createObjectURL(recipe.image);
       img.alt = '';
       thumb.appendChild(img);
     } else {
@@ -119,10 +119,10 @@ export function renderList(state) {
       s.textContent = recipe.storeName;
       metaRow.appendChild(s);
     }
-    if (recipe.cookingMinutes != null) {
+    if (recipe.cookingTime != null) {
       const t = document.createElement('span');
       t.className = 'card-meta';
-      t.textContent = `${recipe.cookingMinutes}分`;
+      t.textContent = `${recipe.cookingTime}分`;
       metaRow.appendChild(t);
     }
     body.append(title, metaRow);

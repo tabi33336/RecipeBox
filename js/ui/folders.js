@@ -1,5 +1,7 @@
 import { getAllRecipes, putFolder, deleteFolder, genId } from '../data/db.js';
+import { pushDeletion } from '../data/sync.js';
 import { confirmDialog } from '../utils/confirmDialog.js';
+import { reportSyncError } from '../utils/syncFeedback.js';
 import { UI_ICONS } from '../icons.js';
 
 const els = {};
@@ -54,6 +56,7 @@ async function removeFolder(folder) {
   folders = folders.filter((f) => f.id !== folder.id);
   render();
   await onChange();
+  pushDeletion('folder', folder.id).catch(reportSyncError);
 }
 
 function render() {

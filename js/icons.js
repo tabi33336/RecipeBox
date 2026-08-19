@@ -26,6 +26,9 @@ export const UI_ICONS = {
   sort: `<svg ${SVG_ATTRS}><path d="M7 5v14M7 5 4 8M7 5l3 3"/><path d="M17 19V5M17 19l3-3M17 19l-3-3"/></svg>`,
   sparkle: `<svg ${SVG_ATTRS}><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.5 6.5l2 2M15.5 15.5l2 2M17.5 6.5l-2 2M8.5 15.5l-2 2"/></svg>`,
   photo: `<svg ${SVG_ATTRS}><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><circle cx="9" cy="10.5" r="1.7"/><path d="m5 17 4.5-4.5 3 3 3-4L20 17"/></svg>`,
+  calendar: `<svg ${SVG_ATTRS}><rect x="4" y="5.5" width="16" height="14.5" rx="1.5"/><path d="M4 10h16"/><path d="M8 3.5v3M16 3.5v3"/></svg>`,
+  list: `<svg ${SVG_ATTRS}><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>`,
+  cart: `<svg ${SVG_ATTRS}><path d="M3.5 4.5h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.6a1.5 1.5 0 0 0 1.5-1.2L20 8.5H7"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>`,
 };
 
 export function iconMarkup(name) {

@@ -199,6 +199,27 @@
 .ingredient-row .name-field { flex: 2; min-width: 0; }
 .ingredient-row .amount-field { flex: 1; min-width: 0; }
 .ingredient-row .unit-field { flex: 1; min-width: 0; }
+.amount-field .amount-preset {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  padding: 6px 8px;
+}
+.optional-toggle {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 10px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.optional-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
 .step-row .index {
   flex-shrink: 0;
   width: 28px;
@@ -393,6 +414,20 @@
 .menu button.selected {
   color: var(--accent);
   font-weight: 700;
+}
+
+.sync-qr {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+}
+.sync-qr svg {
+  max-width: 220px;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  padding: var(--space-2);
 }
 
 .confirm-overlay {

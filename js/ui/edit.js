@@ -6,6 +6,7 @@ import { guessRecipeFromPhoto } from '../features/aiGuess.js';
 import { getGeminiApiKey, getGeminiModel, getCorsProxyUrl } from '../data/settings.js';
 import { iconMarkup, ICON_KEYS, UI_ICONS } from '../icons.js';
 import { genId } from '../data/db.js';
+import { isBlankIngredient, parseAmount, AMOUNT_PRESETS } from '../data/recipeUtils.js';
 
 const els = {};
 let currentIcon = 'utensils';
@@ -33,6 +34,7 @@ export function initEdit() {
   els.store = q('editStore');
   els.cookingMinutes = q('editCookingMinutes');
   els.cookingAutoHint = q('cookingAutoHint');
+  els.servings = q('editServings');
   els.folderChips = q('editFolderChips');
   els.ingredientRows = q('ingredientRows');
   els.stepRows = q('stepRows');
@@ -164,7 +166,7 @@ function renumberSteps() {
 }
 
 function addIngredientRow(ingredient) {
-  const data = ingredient || { name: '', amount: '', unit: '' };
+  const data = ingredient || { name: '', amount: '', unit: '', optional: false };
   const row = document.createElement('div');
   row.className = 'ingredient-row';
 
@@ -181,9 +183,29 @@ function addIngredientRow(ingredient) {
   amountField.className = 'field amount-field';
   const amountInput = document.createElement('input');
   amountInput.type = 'text';
+  amountInput.className = 'amount-input';
   amountInput.placeholder = '分量';
-  amountInput.value = data.amount;
+  amountInput.value = data.amount ?? '';
   amountField.appendChild(amountInput);
+
+  const presetSelect = document.createElement('select');
+  presetSelect.className = 'amount-preset';
+  const placeholderOpt = document.createElement('option');
+  placeholderOpt.value = '';
+  placeholderOpt.textContent = '分量プリセット';
+  presetSelect.appendChild(placeholderOpt);
+  for (const preset of AMOUNT_PRESETS) {
+    const opt = document.createElement('option');
+    opt.value = preset;
+    opt.textContent = preset;
+    presetSelect.appendChild(opt);
+  }
+  presetSelect.addEventListener('change', () => {
+    if (!presetSelect.value) return;
+    amountInput.value = presetSelect.value;
+    presetSelect.value = '';
+  });
+  amountField.appendChild(presetSelect);
 
   const unitField = document.createElement('div');
   unitField.className = 'field unit-field';
@@ -195,13 +217,23 @@ function addIngredientRow(ingredient) {
 
   unitInput._lastAutoUnit = null;
 
+  const optionalField = document.createElement('label');
+  optionalField.className = 'optional-toggle';
+  const optionalCheckbox = document.createElement('input');
+  optionalCheckbox.type = 'checkbox';
+  optionalCheckbox.className = 'optional-checkbox';
+  optionalCheckbox.checked = !!data.optional;
+  const optionalLabel = document.createElement('span');
+  optionalLabel.textContent = '任意';
+  optionalField.append(optionalCheckbox, optionalLabel);
+
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
   removeBtn.className = 'btn btn-icon row-remove';
   removeBtn.innerHTML = UI_ICONS.close;
   removeBtn.addEventListener('click', () => row.remove());
 
-  row.append(nameField, amountField, unitField, removeBtn);
+  row.append(nameField, amountField, unitField, optionalField, removeBtn);
   els.ingredientRows.appendChild(row);
   bindAutosize(nameInput);
 
@@ -344,8 +376,8 @@ async function handleAiGuess() {
 export function loadRecipeIntoForm(recipe, foldersList) {
   folders = foldersList || [];
   currentIcon = recipe?.icon || 'utensils';
-  currentPhotoBlob = recipe?.photo || null;
-  importedSourceURL = recipe?.sourceURL || null;
+  currentPhotoBlob = recipe?.image || null;
+  importedSourceURL = recipe?.sourceUrl || null;
   selectedFolderId = recipe?.folderId ?? null;
   lastAutoCookingMinutes = null;
 
@@ -356,7 +388,8 @@ export function loadRecipeIntoForm(recipe, foldersList) {
 
   els.title.value = recipe?.title || '';
   els.store.value = recipe?.storeName || '';
-  els.cookingMinutes.value = recipe?.cookingMinutes != null ? String(recipe.cookingMinutes) : '';
+  els.cookingMinutes.value = recipe?.cookingTime != null ? String(recipe.cookingTime) : '';
+  els.servings.value = recipe?.servings != null ? String(recipe.servings) : '';
   els.memo.value = recipe?.memo || '';
 
   autosize(els.title);
@@ -368,7 +401,7 @@ export function loadRecipeIntoForm(recipe, foldersList) {
   updateCookingHint();
 
   els.ingredientRows.innerHTML = '';
-  const ingredients = recipe?.ingredients?.length ? recipe.ingredients : [{ name: '', amount: '', unit: '' }];
+  const ingredients = recipe?.ingredients?.length ? recipe.ingredients : [{ name: '', amount: '', unit: '', optional: false }];
   for (const ing of ingredients) addIngredientRow(ing);
 
   els.stepRows.innerHTML = '';
@@ -378,19 +411,26 @@ export function loadRecipeIntoForm(recipe, foldersList) {
 
 export function collectFormData() {
   const ingredients = Array.from(els.ingredientRows.children).map((row) => {
-    const [nameInput, amountInput, unitInput] = [
+    const [nameInput, amountInput, unitInput, optionalCheckbox] = [
       row.querySelector('.name-field textarea'),
-      row.querySelector('.amount-field input'),
+      row.querySelector('.amount-input'),
       row.querySelector('.unit-field input'),
+      row.querySelector('.optional-checkbox'),
     ];
-    return { name: nameInput.value.trim(), amount: amountInput.value.trim(), unit: unitInput.value.trim() };
-  }).filter((ing) => ing.name || ing.amount || ing.unit);
+    return {
+      name: nameInput.value.trim(),
+      amount: parseAmount(amountInput.value.trim()),
+      unit: unitInput.value.trim(),
+      optional: optionalCheckbox.checked,
+    };
+  }).filter((ing) => !isBlankIngredient(ing));
 
   const steps = Array.from(els.stepRows.querySelectorAll('textarea'))
     .map((t) => t.value.trim())
     .filter((s) => s !== '');
 
   const cookingMinutesValue = els.cookingMinutes.value.trim();
+  const servingsValue = els.servings.value.trim();
 
   return {
     title: els.title.value.trim(),
@@ -398,10 +438,11 @@ export function collectFormData() {
     ingredients,
     steps,
     memo: els.memo.value.trim(),
-    photo: currentPhotoBlob,
+    image: currentPhotoBlob,
     icon: currentIcon,
-    sourceURL: importedSourceURL,
-    cookingMinutes: cookingMinutesValue ? parseInt(cookingMinutesValue, 10) : null,
+    sourceUrl: importedSourceURL,
+    cookingTime: cookingMinutesValue ? parseInt(cookingMinutesValue, 10) : null,
+    servings: servingsValue ? parseInt(servingsValue, 10) : null,
     folderId: selectedFolderId,
   };
 }

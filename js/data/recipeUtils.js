@@ -1,14 +1,44 @@
 export function formatIngredient(ing) {
-  return `${ing.name} ${ing.amount || ''}${ing.unit || ''}`.trim();
+  const base = `${ing.name} ${ing.amount ?? ''}${ing.unit || ''}`.trim();
+  return ing.optional ? `${base}（任意）` : base;
+}
+
+function isAmountBlank(amount) {
+  if (amount == null) return true;
+  if (typeof amount === 'number') return false;
+  return !String(amount).trim();
 }
 
 export function isBlankIngredient(ing) {
-  return !ing.name?.trim() && !ing.amount?.trim() && !ing.unit?.trim();
+  return !ing.name?.trim() && isAmountBlank(ing.amount) && !ing.unit?.trim();
 }
 
 export function filterBlankIngredients(ingredients) {
   return ingredients.filter((ing) => !isBlankIngredient(ing));
 }
+
+/**
+ * Parses a free-text amount into a number when it's purely numeric or a
+ * simple fraction (e.g. "2", "1.5", "1/2"). Non-numeric text (e.g. "少々",
+ * "適量") is returned unchanged so it can still be stored and displayed.
+ */
+export function parseAmount(raw) {
+  if (raw == null) return raw;
+  if (typeof raw === 'number') return raw;
+  const trimmed = String(raw).trim();
+  if (trimmed === '') return '';
+  const fraction = trimmed.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fraction) {
+    const denom = parseInt(fraction[2], 10);
+    if (denom !== 0) return parseInt(fraction[1], 10) / denom;
+  }
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return parseFloat(trimmed);
+  }
+  return trimmed;
+}
+
+export const AMOUNT_PRESETS = ['少々', '適量', 'お好みで', 'ひとつまみ'];
 
 export function filterBlankSteps(steps) {
   return steps.filter((s) => s.trim() !== '');
@@ -24,8 +54,8 @@ const SORTERS = {
 };
 
 function byCookingTime(a, b, direction) {
-  const av = a.cookingMinutes;
-  const bv = b.cookingMinutes;
+  const av = a.cookingTime;
+  const bv = b.cookingTime;
   if (av == null && bv == null) return 0;
   if (av == null) return 1;
   if (bv == null) return -1;

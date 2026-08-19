@@ -12,4 +12,5 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     root = os.path.dirname(os.path.abspath(__file__))
     handler = functools.partial(NoCacheHandler, directory=root)
-    http.server.test(HandlerClass=handler, port=5173)
+    port = int(os.environ.get('PORT', 5173))
+    http.server.test(HandlerClass=handler, port=port)

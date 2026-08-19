@@ -3,7 +3,8 @@ import { formatIngredient } from '../data/recipeUtils.js';
 export function buildShareText(recipe) {
   const lines = [recipe.title];
   if (recipe.storeName) lines.push(`📍 ${recipe.storeName}`);
-  if (recipe.cookingMinutes != null) lines.push(`⏱ ${recipe.cookingMinutes}分`);
+  if (recipe.cookingTime != null) lines.push(`⏱ ${recipe.cookingTime}分`);
+  if (recipe.servings != null) lines.push(`👥 ${recipe.servings}人分`);
   if (recipe.ingredients && recipe.ingredients.length > 0) {
     lines.push('', '【材料】');
     for (const ing of recipe.ingredients) {
@@ -17,8 +18,8 @@ export function buildShareText(recipe) {
   if (recipe.memo) {
     lines.push('', recipe.memo);
   }
-  if (recipe.sourceURL) {
-    lines.push('', recipe.sourceURL);
+  if (recipe.sourceUrl) {
+    lines.push('', recipe.sourceUrl);
   }
   return lines.join('\n');
 }
