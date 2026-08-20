@@ -13,12 +13,14 @@
 
 .app-header__inner {
   max-width: 960px;
+  min-height: 60px;
   margin: 0 auto;
   padding: var(--space-3) var(--space-4);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  box-sizing: border-box;
 }
 
 .app-header__title {
@@ -26,6 +28,12 @@
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+}
+
+.app-header__logo {
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
 }
 
 .app-header__actions {
